@@ -1,0 +1,538 @@
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  BadgeCheck,
+  BookOpen,
+  Coins,
+  Flame,
+  Gift,
+  Search,
+  Sparkles,
+  Trophy,
+  Unlock,
+  RotateCcw,
+  CheckCircle2,
+  XCircle,
+  Brain,
+  Plus,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  Repeat,
+  ChevronLeft,
+  ChevronRight,
+  Shuffle,
+  Award,
+  Edit3,
+  PencilLine,
+  Eye,
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+
+const DEFAULT_VOCAB = [
+  { latin: "amicus", german: "Freund", info: "2. Deklination, maskulin" },
+  { latin: "puella", german: "Mädchen", info: "1. Deklination, feminin" },
+  { latin: "bellum", german: "Krieg", info: "2. Deklination, neutrum" },
+  { latin: "via", german: "Weg", info: "1. Deklination, feminin" },
+  { latin: "aqua", german: "Wasser", info: "1. Deklination, feminin" },
+  { latin: "domus", german: "Haus", info: "4. Deklination / Sonderform" },
+  { latin: "rex", german: "König", info: "3. Deklination, maskulin" },
+  { latin: "mater", german: "Mutter", info: "3. Deklination, feminin" },
+  { latin: "pater", german: "Vater", info: "3. Deklination, maskulin" },
+  { latin: "sol", german: "Sonne", info: "3. Deklination, maskulin" },
+  { latin: "terra", german: "Erde", info: "1. Deklination, feminin" },
+  { latin: "vox", german: "Stimme", info: "3. Deklination, feminin" },
+];
+
+const EXERCISE_SENTENCES = [
+  { level: "Kl. 6", latin: "Puella aquam portat.", german: "Das Mädchen trägt Wasser." },
+  { level: "Kl. 6", latin: "Amicus in via stat.", german: "Der Freund steht auf dem Weg." },
+  { level: "Kl. 7", latin: "Pater domum videt.", german: "Der Vater sieht das Haus." },
+  { level: "Kl. 7", latin: "Puella librum legit.", german: "Das Mädchen liest ein Buch." },
+  { level: "Kl. 8", latin: "Rex in urbe habitat.", german: "Der König wohnt in der Stadt." },
+  { level: "Kl. 8", latin: "Servus in agro laborat.", german: "Der Sklave arbeitet auf dem Feld." },
+  { level: "Kl. 9", latin: "Post bellum pax venit.", german: "Nach dem Krieg kommt Frieden." },
+  { level: "Kl. 9", latin: "Mater filiam ad cenam vocat.", german: "Die Mutter ruft die Tochter zum Essen." },
+  { level: "Kl. 10", latin: "Milites fortiter pro patria pugnant.", german: "Die Soldaten kämpfen tapfer für das Vaterland." },
+  { level: "Kl. 10", latin: "Caesar flumen cum exercitu transit.", german: "Cäsar überquert mit dem Heer den Fluss." },
+  { level: "Kl. 11", latin: "Philosophi de vita et morte disputant.", german: "Die Philosophen diskutieren über Leben und Tod." },
+  { level: "Kl. 11", latin: "Dum Roma stabat, orbis terrarum mutabatur.", german: "Während Rom stand, veränderte sich die Welt." },
+  { level: "Kl. 12", latin: "Virtus non verbis, sed factis probatur.", german: "Tugend wird nicht durch Worte, sondern durch Taten bewiesen." },
+  { level: "Kl. 12", latin: "Omnes homines libertatem desiderant.", german: "Alle Menschen wünschen sich Freiheit." },
+];
+
+const QUIZ = [
+  { q: "Was bedeutet 'amicus'?", options: ["Freund", "Weg", "Haus", "Wasser"], answer: 0 },
+  { q: "Was bedeutet 'bellum'?", options: ["Mädchen", "Krieg", "König", "Sonne"], answer: 1 },
+  { q: "Welche Form ist richtig für 'Wasser'?", options: ["terra", "aqua", "vox", "domus"], answer: 1 },
+  { q: "Was bedeutet 'rex'?", options: ["Vater", "König", "Freund", "Stimme"], answer: 1 },
+];
+
+const RANKS = [
+  { name: "🌱 Anfänger", min: 0 },
+  { name: "📖 Lernender", min: 10 },
+  { name: "⚔ Legionär", min: 50 },
+  { name: "🏛 Latein-Meister", min: 100 },
+];
+
+const STORAGE_KEY = {
+  coins: "latinum_coins",
+  learned: "latinum_learned",
+  streak: "latinum_streak",
+  best: "latinum_best",
+  vocab: "latinum_vocab",
+};
+
+function loadNumber(key, fallback = 0) {
+  if (typeof window === "undefined") return fallback;
+  const v = localStorage.getItem(key);
+  return v == null ? fallback : Number(v);
+}
+
+function loadJSON(key, fallback) {
+  if (typeof window === "undefined") return fallback;
+  const v = localStorage.getItem(key);
+  if (!v) return fallback;
+  try {
+    return JSON.parse(v);
+  } catch {
+    return fallback;
+  }
+}
+
+function saveState({ coins, learned, streak, best, vocab }) {
+  localStorage.setItem(STORAGE_KEY.coins, String(coins));
+  localStorage.setItem(STORAGE_KEY.learned, JSON.stringify(learned));
+  localStorage.setItem(STORAGE_KEY.streak, String(streak));
+  localStorage.setItem(STORAGE_KEY.best, String(best));
+  localStorage.setItem(STORAGE_KEY.vocab, JSON.stringify(vocab));
+}
+
+function clearSavedState() {
+  localStorage.removeItem(STORAGE_KEY.coins);
+  localStorage.removeItem(STORAGE_KEY.learned);
+  localStorage.removeItem(STORAGE_KEY.streak);
+  localStorage.removeItem(STORAGE_KEY.best);
+  localStorage.removeItem(STORAGE_KEY.vocab);
+}
+
+function getRank(count) {
+  if (count >= 100) return "🏛 Latein-Meister";
+  if (count >= 50) return "⚔ Legionär";
+  if (count >= 10) return "📖 Lernender";
+  return "🌱 Anfänger";
+}
+
+function getRankIndex(count) {
+  let idx = 0;
+  for (let i = 0; i < RANKS.length; i++) if (count >= RANKS[i].min) idx = i;
+  return idx;
+}
+
+function emptyBoard() {
+  return Array(16).fill(0);
+}
+
+function addRandomTile(board) {
+  const empty = board.map((v, i) => (v === 0 ? i : -1)).filter((v) => v !== -1);
+  if (!empty.length) return board;
+  const next = [...board];
+  next[empty[Math.floor(Math.random() * empty.length)]] = Math.random() < 0.9 ? 2 : 4;
+  return next;
+}
+
+function boardScore(board) {
+  return board.reduce((a, b) => a + b, 0);
+}
+
+function slideLine(line) {
+  const vals = line.filter(Boolean);
+  const out = [];
+  for (let i = 0; i < vals.length; i++) {
+    if (vals[i] === vals[i + 1]) {
+      out.push(vals[i] * 2);
+      i += 1;
+    } else {
+      out.push(vals[i]);
+    }
+  }
+  while (out.length < 4) out.push(0);
+  return out;
+}
+
+function toGrid(board) {
+  return [board.slice(0, 4), board.slice(4, 8), board.slice(8, 12), board.slice(12, 16)];
+}
+
+function fromGrid(grid) {
+  return grid.flat();
+}
+
+function transpose(grid) {
+  return grid[0].map((_, c) => grid.map((r) => r[c]));
+}
+
+function reverseRows(grid) {
+  return grid.map((row) => [...row].reverse());
+}
+
+function moveLeft(board) {
+  const grid = toGrid(board);
+  const nextGrid = grid.map((row) => slideLine(row));
+  const next = fromGrid(nextGrid);
+  return { board: next, changed: JSON.stringify(next) !== JSON.stringify(board) };
+}
+
+function moveRight(board) {
+  const grid = toGrid(board);
+  const reversed = reverseRows(grid);
+  const moved = reversed.map((row) => slideLine(row));
+  const nextGrid = reverseRows(moved);
+  const next = fromGrid(nextGrid);
+  return { board: next, changed: JSON.stringify(next) !== JSON.stringify(board) };
+}
+
+function moveUp(board) {
+  const grid = transpose(toGrid(board));
+  const moved = grid.map((row) => slideLine(row));
+  const next = fromGrid(transpose(moved));
+  return { board: next, changed: JSON.stringify(next) !== JSON.stringify(board) };
+}
+
+function moveDown(board) {
+  const grid = transpose(toGrid(board));
+  const reversed = reverseRows(grid);
+  const moved = reversed.map((row) => slideLine(row));
+  const next = fromGrid(transpose(reverseRows(moved)));
+  return { board: next, changed: JSON.stringify(next) !== JSON.stringify(board) };
+}
+
+function canMove(board) {
+  if (board.includes(0)) return true;
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 4; c++) {
+      const i = r * 4 + c;
+      const right = c < 3 ? board[i + 1] : null;
+      const down = r < 3 ? board[i + 4] : null;
+      if (board[i] === right || board[i] === down) return true;
+    }
+  }
+  return false;
+}
+
+function Game2048({ onClose }) {
+  const [board, setBoard] = useState(() => addRandomTile(addRandomTile(emptyBoard())));
+  const [status, setStatus] = useState("Spiele mit den Pfeiltasten oder den Buttons.");
+  const [won, setWon] = useState(false);
+  const [over, setOver] = useState(false);
+
+  const applyMove = (dir) => {
+    if (won || over) return;
+    let result = { board, changed: false };
+    if (dir === "left") result = moveLeft(board);
+    if (dir === "right") result = moveRight(board);
+    if (dir === "up") result = moveUp(board);
+    if (dir === "down") result = moveDown(board);
+    if (!result.changed) return;
+
+    const next = addRandomTile(result.board);
+    setBoard(next);
+    setStatus("Weiter so!");
+    if (next.some((v) => v >= 2048)) {
+      setWon(true);
+      setStatus("Du hast 2048 erreicht!");
+    } else if (!canMove(next)) {
+      setOver(true);
+      setStatus("Kein Zug mehr möglich. Spiel vorbei.");
+    }
+  };
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) e.preventDefault();
+      if (e.key === "ArrowLeft") applyMove("left");
+      if (e.key === "ArrowRight") applyMove("right");
+      if (e.key === "ArrowUp") applyMove("up");
+      if (e.key === "ArrowDown") applyMove("down");
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [board, won, over]);
+
+  const reset = () => {
+    setBoard(addRandomTile(addRandomTile(emptyBoard())));
+    setWon(false);
+    setOver(false);
+    setStatus("Neues Spiel gestartet.");
+  };
+
+  const tileClass = (n) => {
+    const base = "flex aspect-square items-center justify-center rounded-2xl text-xl font-bold shadow-sm transition";
+    if (!n) return `${base} bg-slate-100 text-transparent`;
+    if (n < 8) return `${base} bg-white text-slate-900`;
+    if (n < 32) return `${base} bg-amber-100 text-slate-900`;
+    if (n < 128) return `${base} bg-amber-200 text-slate-900`;
+    if (n < 512) return `${base} bg-orange-200 text-slate-900`;
+    return `${base} bg-rose-200 text-slate-900`;
+  };
+
+  return (
+    <Card className="rounded-[2rem] border-0 shadow-lg">
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle className="text-xl">2048</CardTitle>
+          <div className="flex gap-2">
+            <Button variant="outline" className="rounded-full" onClick={reset}>
+              <RotateCcw className="mr-2 h-4 w-4" /> Neustart
+            </Button>
+            <Button variant="outline" className="rounded-full" onClick={onClose}>
+              Schließen
+            </Button>
+          </div>
+        </div>
+        <div className="text-sm text-slate-500">{status}</div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-4 gap-2 rounded-3xl bg-slate-100 p-3">
+          {board.map((n, i) => (
+            <div key={i} className={tileClass(n)}>
+              {n || ""}
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 sm:max-w-sm">
+          <div />
+          <Button variant="outline" className="rounded-2xl" onClick={() => applyMove("up")}>
+            <ArrowUp className="h-4 w-4" />
+          </Button>
+          <div />
+          <Button variant="outline" className="rounded-2xl" onClick={() => applyMove("left")}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" className="rounded-2xl" onClick={() => applyMove("down")}>
+            <ArrowDown className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" className="rounded-2xl" onClick={() => applyMove("right")}>
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
+          <div>Score: {boardScore(board)}</div>
+          <div>{won ? "Gewonnen!" : over ? "Keine Züge mehr" : "Ziel: 2048"}</div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ReviewCards({ vocab, onClose }) {
+  const [index, setIndex] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+
+  useEffect(() => {
+    setIndex(0);
+    setFlipped(false);
+  }, [vocab]);
+
+  if (!vocab.length) return null;
+
+  const done = index >= vocab.length;
+  const current = vocab[Math.min(index, vocab.length - 1)];
+
+  const next = () => {
+    setFlipped(false);
+    setIndex((i) => Math.min(vocab.length, i + 1));
+  };
+
+  const prev = () => {
+    setFlipped(false);
+    setIndex((i) => Math.max(0, i - 1));
+  };
+
+  const restart = () => {
+    setIndex(0);
+    setFlipped(false);
+  };
+
+  return (
+    <Card className="rounded-[2rem] border-0 shadow-lg shadow-slate-200/60">
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle className="text-xl">Wiederholung aller Wörter</CardTitle>
+          <Badge variant="secondary" className="rounded-full">
+            {Math.min(index + 1, vocab.length)}/{vocab.length}
+          </Badge>
+        </div>
+        <Progress value={(Math.min(index + 1, vocab.length) / vocab.length) * 100} className="h-2" />
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {done ? (
+          <div className="rounded-3xl bg-emerald-50 p-5">
+            <div className="text-lg font-semibold">Du hast alle Wörter wiederholt.</div>
+            <div className="mt-1 text-slate-600">Du kannst direkt noch einmal von vorne anfangen.</div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button className="rounded-full" onClick={restart}>
+                <Repeat className="mr-2 h-4 w-4" /> Nochmal wiederholen
+              </Button>
+              <Button variant="outline" className="rounded-full" onClick={onClose}>
+                Schließen
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="rounded-3xl bg-slate-50 p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-2xl font-bold">{current.latin}</div>
+                <Badge variant="outline" className="rounded-full">
+                  {current.info}
+                </Badge>
+              </div>
+              <div className="mt-3 text-slate-600">{flipped ? current.german : "Tippe auf die Karte zum Umdrehen."}</div>
+              <Button variant="outline" className="mt-4 rounded-full" onClick={() => setFlipped((f) => !f)}>
+                Umdrehen
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Button variant="outline" className="rounded-full" onClick={prev} disabled={index === 0}>
+                <ChevronLeft className="mr-2 h-4 w-4" /> Zurück
+              </Button>
+              <Button variant="outline" className="rounded-full" onClick={next} disabled={index >= vocab.length}>
+                Weiter <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+              <Button className="rounded-full" onClick={() => setIndex(vocab.length)}>
+                Fertig mit allen
+              </Button>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SentenceTrainer({ sentences }) {
+  const [index, setIndex] = useState(0);
+  const [showGerman, setShowGerman] = useState(false);
+  const [filter, setFilter] = useState("all");
+
+  useEffect(() => {
+    setIndex(0);
+    setShowGerman(false);
+  }, [sentences, filter]);
+
+  const filtered = useMemo(() => {
+    if (filter === "all") return sentences;
+    if (filter === "low") return sentences.filter((s) => ["Kl. 6", "Kl. 7", "Kl. 8"].includes(s.level));
+    if (filter === "mid") return sentences.filter((s) => ["Kl. 9", "Kl. 10"].includes(s.level));
+    return sentences.filter((s) => ["Kl. 11", "Kl. 12"].includes(s.level));
+  }, [sentences, filter]);
+
+  const done = index >= filtered.length;
+  const current = filtered[Math.min(index, filtered.length - 1)];
+
+  const next = () => {
+    setShowGerman(false);
+    setIndex((i) => Math.min(filtered.length, i + 1));
+  };
+
+  const prev = () => {
+    setShowGerman(false);
+    setIndex((i) => Math.max(0, i - 1));
+  };
+
+  const restart = () => {
+    setIndex(0);
+    setShowGerman(false);
+  };
+
+  return (
+    <Card className="rounded-[2rem] border-0 shadow-lg shadow-slate-200/60">
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <CardTitle className="text-xl">Übungssätze</CardTitle>
+          <Badge variant="secondary" className="rounded-full">
+            {Math.min(index + 1, filtered.length)}/{filtered.length}
+          </Badge>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant={filter === "all" ? "default" : "outline"} size="sm" className="rounded-full" onClick={() => setFilter("all")}>Alle</Button>
+          <Button variant={filter === "low" ? "default" : "outline"} size="sm" className="rounded-full" onClick={() => setFilter("low")}>Kl. 6–8</Button>
+          <Button variant={filter === "mid" ? "default" : "outline"} size="sm" className="rounded-full" onClick={() => setFilter("mid")}>Kl. 9–10</Button>
+          <Button variant={filter === "high" ? "default" : "outline"} size="sm" className="rounded-full" onClick={() => setFilter("high")}>Kl. 11–12</Button>
+        </div>
+        <Progress value={(Math.min(index + 1, filtered.length) / Math.max(1, filtered.length)) * 100} className="h-2" />
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {filtered.length === 0 ? (
+          <div className="rounded-3xl bg-slate-50 p-5 text-slate-600">Keine Sätze in dieser Auswahl.</div>
+        ) : done ? (
+          <div className="rounded-3xl bg-emerald-50 p-5">
+            <div className="text-lg font-semibold">Du hast alle Übungssätze durch.</div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button className="rounded-full" onClick={restart}>
+                <Repeat className="mr-2 h-4 w-4" /> Noch einmal
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="rounded-3xl bg-slate-50 p-5">
+              <div className="text-sm text-slate-500">{current.level}</div>
+              <div className="mt-2 text-xl font-semibold">{showGerman ? current.german : current.latin}</div>
+              <div className="mt-3 text-sm text-slate-500">
+                {showGerman ? current.latin : "Tippe auf Umdrehen, um die Übersetzung zu sehen."}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button variant="outline" className="rounded-full" onClick={() => setShowGerman((v) => !v)}>
+                  Umdrehen
+                </Button>
+                <Button className="rounded-full" onClick={restart}>
+                  <Shuffle className="mr-2 h-4 w-4" /> Neu starten
+                </Button>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Button variant="outline" className="rounded-full" onClick={prev} disabled={index === 0}>
+                <ChevronLeft className="mr-2 h-4 w-4" /> Zurück
+              </Button>
+              <Button variant="outline" className="rounded-full" onClick={next} disabled={index >= filtered.length}>
+                Weiter <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+              <Button className="rounded-full" onClick={() => setIndex(filtered.length)}>
+                Fertig mit allen
+              </Button>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TranslationTrainer({ vocab, onCorrect }) {
+  const [index, setIndex] = useState(0);
+  const [answer, setAnswer] = useState("");
+  const [locked, setLocked] = useState(false);
+  const [result, setResult] = useState(null);
+
+  useEffect(() => {
+    setIndex(0);
+    setAnswer("");
+    setLocked(false);
+    setResult(null);
+  }, [vocab]);
+
+  const current = vocab[index];
+  const done = index >= vocab.length;
+
+  const check = () => {
+   
